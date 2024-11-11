@@ -11,7 +11,8 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
+  FlatList
 } from "react-native";
 
 interface TarifaParking {
@@ -21,15 +22,25 @@ interface TarifaParking {
   Fraccion: number;
 }
 
-interface CarWash {
+interface ServicioCarWash {
   id: number;
-  Servicio: string;
+  Nombre: string;
+  Descripcion: string;
   Tarifa: number;
+}
+
+interface FacturaParking {
+  id: number;
+  Ticket_id: number;
+  Tarifas_Parking_id: number;
+  Hora_Salida: string;
+  Total: number;
+  Fecha_Factura: string;
 }
 
 type SectionData = {
   title: string;
-  data: Array<TarifaParking | CarWash>;
+  data: Array<TarifaParking | ServicioCarWash | FacturaParking>;
 };
 
 export default function ExploreScreen() {
@@ -39,28 +50,38 @@ export default function ExploreScreen() {
 
   // Estados para modales y formularios
   const [modalVisible, setModalVisible] = useState<boolean>(false);
-  const [currentEntity, setCurrentEntity] = useState<string | null>(null); // "TarifaParking" o "CarWash"
-  const [formData, setFormData] = useState<Partial<TarifaParking | CarWash>>(
-    {}
-  );
+  const [currentEntity, setCurrentEntity] = useState<
+    "TarifaParking" | "ServicioCarWash" | null
+  >(null);
+  const [formData, setFormData] = useState<
+    Partial<TarifaParking | ServicioCarWash>
+  >({});
+
+  const [facturasParking, setFacturasParking] = useState<FacturaParking[]>([]);
 
   const fetchData = async () => {
     try {
-      const [tarifasRes, carWashRes] = await Promise.all([
-        fetch("https://mr-carwash-api.onrender.com/api/tarifas-parking"),
-        fetch("https://mr-carwash-api.onrender.com/api/car-wash")
+      const [tarifasRes, serviciosRes, facturasParkingRes] = await Promise.all([
+        fetch("https://mr-carwash-api.onrender.com/api/tarifas_parking"),
+        fetch("https://mr-carwash-api.onrender.com/api/servicios_car_wash"),
+        fetch("https://mr-carwash-api.onrender.com/api/facturas_parking")
       ]);
 
-      if (!tarifasRes.ok || !carWashRes.ok) {
+      if (!tarifasRes.ok || !serviciosRes.ok || !facturasParkingRes.ok) {
         throw new Error("Error al obtener los datos");
       }
 
       const tarifas: TarifaParking[] = await tarifasRes.json();
-      const carWash: CarWash[] = await carWashRes.json();
+      const servicios: ServicioCarWash[] = await serviciosRes.json();
+      const facturasParkingData: FacturaParking[] =
+        await facturasParkingRes.json();
+
+      setFacturasParking(facturasParkingData);
 
       setSections([
         { title: "Tarifas de Parking", data: tarifas },
-        { title: "Servicios de Car Wash", data: carWash }
+        { title: "Servicios de Car Wash", data: servicios },
+        { title: "Facturas de Parking", data: facturasParkingData }
       ]);
     } catch (err: any) {
       setError(err.message || "Error desconocido");
@@ -74,22 +95,30 @@ export default function ExploreScreen() {
   }, []);
 
   // Funciones CRUD
-  const handleAdd = (entity: string) => {
+  const handleAdd = (entity: "TarifaParking" | "ServicioCarWash") => {
     setCurrentEntity(entity);
     setFormData({});
     setModalVisible(true);
   };
 
-  const handleEdit = (entity: string, item: TarifaParking | CarWash) => {
+  const handleEdit = (
+    entity: "TarifaParking" | "ServicioCarWash",
+    item: TarifaParking | ServicioCarWash
+  ) => {
     setCurrentEntity(entity);
     setFormData(item);
     setModalVisible(true);
   };
 
-  const handleDelete = (entity: string, id: number) => {
+  const handleDelete = (
+    entity: "TarifaParking" | "ServicioCarWash",
+    id: number
+  ) => {
     Alert.alert(
       "Confirmar Eliminación",
-      `¿Estás seguro de que deseas eliminar este ${entity}?`,
+      `¿Estás seguro de que deseas eliminar este ${
+        entity === "TarifaParking" ? "Tarifa" : "Servicio"
+      }?`,
       [
         { text: "Cancelar", style: "cancel" },
         {
@@ -99,8 +128,8 @@ export default function ExploreScreen() {
             try {
               const endpoint =
                 entity === "TarifaParking"
-                  ? `https://mr-carwash-api.onrender.com/api/tarifas-parking/${id}`
-                  : `https://mr-carwash-api.onrender.com/api/car-wash/${id}`;
+                  ? `https://mr-carwash-api.onrender.com/api/tarifas_parking/${id}`
+                  : `https://mr-carwash-api.onrender.com/api/servicios_car_wash/${id}`;
               const response = await fetch(endpoint, {
                 method: "DELETE"
               });
@@ -131,14 +160,14 @@ export default function ExploreScreen() {
 
       if (currentEntity === "TarifaParking") {
         endpoint = formData?.id
-          ? `https://mr-carwash-api.onrender.com/api/tarifas-parking/${formData.id}`
-          : `https://mr-carwash-api.onrender.com/api/tarifas-parking`;
+          ? `https://mr-carwash-api.onrender.com/api/tarifas_parking/${formData.id}`
+          : `https://mr-carwash-api.onrender.com/api/tarifas_parking`;
         method = formData?.id ? "PUT" : "POST";
         body = JSON.stringify(formData);
-      } else if (currentEntity === "CarWash") {
+      } else if (currentEntity === "ServicioCarWash") {
         endpoint = formData?.id
-          ? `https://mr-carwash-api.onrender.com/api/car-wash/${formData.id}`
-          : `https://mr-carwash-api.onrender.com/api/car-wash`;
+          ? `https://mr-carwash-api.onrender.com/api/servicios_car_wash/${formData.id}`
+          : `https://mr-carwash-api.onrender.com/api/servicios_car_wash`;
         method = formData?.id ? "PUT" : "POST";
         body = JSON.stringify(formData);
       } else {
@@ -188,20 +217,21 @@ export default function ExploreScreen() {
     </ThemedView>
   );
 
-  const renderCarWash = (servicio: CarWash) => (
+  const renderServicio = (servicio: ServicioCarWash) => (
     <ThemedView style={styles.itemContainer}>
-      <Text style={styles.titulo}>{servicio.Servicio}</Text>
+      <Text style={styles.titulo}>{servicio.Nombre}</Text>
       <Text>Tarifa: ${servicio.Tarifa}</Text>
+      <Text>{servicio.Descripcion}</Text>
       <View style={styles.buttonContainer}>
         <TouchableOpacity
           style={styles.editButton}
-          onPress={() => handleEdit("CarWash", servicio)}
+          onPress={() => handleEdit("ServicioCarWash", servicio)}
         >
           <Text style={styles.buttonText}>Editar</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.deleteButton}
-          onPress={() => handleDelete("CarWash", servicio.id)}
+          onPress={() => handleDelete("ServicioCarWash", servicio.id)}
         >
           <Text style={styles.buttonText}>Eliminar</Text>
         </TouchableOpacity>
@@ -209,17 +239,28 @@ export default function ExploreScreen() {
     </ThemedView>
   );
 
+  const renderFacturaParking = (factura: FacturaParking) => (
+    <ThemedView style={styles.itemContainer}>
+      <Text style={styles.titulo}>Factura ID: {factura.id}</Text>
+      <Text>Ticket ID: {factura.Ticket_id}</Text>
+      <Text>Total: ${factura.Total}</Text>
+      <Text>Fecha: {factura.Fecha_Factura}</Text>
+    </ThemedView>
+  );
+
   const renderItem = ({
     item,
     section
   }: {
-    item: TarifaParking | CarWash;
+    item: TarifaParking | ServicioCarWash | FacturaParking;
     section: SectionData;
   }) => {
     if (section.title === "Tarifas de Parking") {
       return renderTarifa(item as TarifaParking);
     } else if (section.title === "Servicios de Car Wash") {
-      return renderCarWash(item as CarWash);
+      return renderServicio(item as ServicioCarWash);
+    } else if (section.title === "Facturas de Parking") {
+      return renderFacturaParking(item as FacturaParking);
     }
     return null;
   };
@@ -257,7 +298,7 @@ export default function ExploreScreen() {
         />
       )}
 
-      {/* Botón para Agregar TarifaParking y CarWash */}
+      {/* Botón para Agregar TarifaParking y ServicioCarWash */}
       <View style={styles.addButtonContainer}>
         <TouchableOpacity
           style={styles.addButton}
@@ -267,7 +308,7 @@ export default function ExploreScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => handleAdd("CarWash")}
+          onPress={() => handleAdd("ServicioCarWash")}
         >
           <Text style={styles.buttonText}>Agregar Servicio</Text>
         </TouchableOpacity>
@@ -285,14 +326,12 @@ export default function ExploreScreen() {
             <Text style={styles.modalTitle}>
               {formData &&
                 ("Tipo_Vehiculo" in formData
-                  ? "Editar Tarifa"
-                  : "Editar Servicio")}
-              {currentEntity === "TarifaParking" &&
-                !("Tipo_Vehiculo" in formData) &&
-                "Agregar Tarifa"}
-              {currentEntity === "CarWash" &&
-                !("Servicio" in formData) &&
-                "Agregar Servicio"}
+                  ? formData.id
+                    ? "Editar Tarifa"
+                    : "Agregar Tarifa"
+                  : formData.id
+                  ? "Editar Servicio"
+                  : "Agregar Servicio")}
             </Text>
             {/* Formulario Dinámico */}
             {currentEntity === "TarifaParking" ? (
@@ -309,7 +348,11 @@ export default function ExploreScreen() {
                   style={styles.input}
                   placeholder="Tarifa por Hora"
                   keyboardType="numeric"
-                  value={"Hora" in formData && formData.Hora ? formData.Hora.toString() : ""}
+                  value={
+                    "Hora" in formData && formData.Hora
+                      ? formData.Hora.toString()
+                      : ""
+                  }
                   onChangeText={(text) =>
                     setFormData({ ...formData, Hora: parseFloat(text) })
                   }
@@ -318,27 +361,43 @@ export default function ExploreScreen() {
                   style={styles.input}
                   placeholder="Fracción (horas)"
                   keyboardType="numeric"
-                  value={(formData as TarifaParking)?.Fraccion ? (formData as TarifaParking).Fraccion.toString() : ""}
+                  value={
+                    (formData as TarifaParking)?.Fraccion
+                      ? (formData as TarifaParking).Fraccion.toString()
+                      : ""
+                  }
                   onChangeText={(text) =>
                     setFormData({ ...formData, Fraccion: parseFloat(text) })
                   }
                 />
               </>
-            ) : currentEntity === "CarWash" ? (
+            ) : currentEntity === "ServicioCarWash" ? (
               <>
                 <TextInput
                   style={styles.input}
-                  placeholder="Servicio"
-                  value={(formData as CarWash)?.Servicio || ""}
+                  placeholder="Nombre del Servicio"
+                  value={(formData as ServicioCarWash)?.Nombre || ""}
                   onChangeText={(text) =>
-                    setFormData({ ...formData, Servicio: text })
+                    setFormData({ ...formData, Nombre: text })
+                  }
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Descripción"
+                  value={(formData as ServicioCarWash)?.Descripcion || ""}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, Descripcion: text })
                   }
                 />
                 <TextInput
                   style={styles.input}
                   placeholder="Tarifa"
                   keyboardType="numeric"
-                  value={(formData as Partial<CarWash>)?.Tarifa?.toString() || ""}
+                  value={
+                    (
+                      formData as Partial<ServicioCarWash>
+                    )?.Tarifa?.toString() || ""
+                  }
                   onChangeText={(text) =>
                     setFormData({ ...formData, Tarifa: parseFloat(text) })
                   }
@@ -366,7 +425,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#D0D0D0",
     paddingVertical: 20,
     alignItems: "center",
-    paddingBottom: 40 // Ajuste para que el contenido no se corte
+    paddingBottom: 40
   },
   titleContainer: {
     marginTop: 10
